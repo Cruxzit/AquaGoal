@@ -21,6 +21,19 @@ export default function App() {
     }
   };
 
+  const AppButton = ({ title, onPress, type = 'primary' }) => (
+    <TouchableOpacity
+      onPress={onPress}
+      activeOpacity={0.8}
+      style={[
+        styles.appButton,
+        type === 'secondary' && styles.appButtonSecondary,
+      ]}
+    >
+      <Text style={[styles.appButtonText, type === 'secondary' && styles.appButtonTextSecondary]}>{title}</Text>
+    </TouchableOpacity>
+  );
+
   useEffect(() => {
     const goal = confirmedGoal && confirmedGoal > 0 ? confirmedGoal : defaultGoal;
     const toValue = Math.min(totalCups / goal, 1);
@@ -58,10 +71,10 @@ export default function App() {
 
           <View style={styles.buttonArea}>
             <View style={styles.buttonWrapper}>
-              <Button title="Add Cup" onPress={() => setTotalCups(c => c + 1)} />
+              <AppButton title="Add Cup" onPress={() => setTotalCups(c => c + 1)} />
             </View>
             <View style={styles.buttonWrapper}>
-              <Button title="Reset" onPress={() => setTotalCups(0)} />
+              <AppButton title="Reset" onPress={() => setTotalCups(0)} type="secondary" />
             </View>
           </View>
 
@@ -80,7 +93,7 @@ export default function App() {
             onChangeText={setDailyGoal}
           />
           <View style={{ height: 10 }} />
-          <Button title="Set Daily Goal" onPress={setConfirmedDailyGoal} />
+          <AppButton title="Set Daily Goal" onPress={setConfirmedDailyGoal} />
           {confirmedGoal > 0 && (
             <Text style={styles.goalText}>Current confirmed goal: {confirmedGoal} cups</Text>
           )}
@@ -216,5 +229,23 @@ const styles = StyleSheet.create({
   },
   navTextActive: {
     color: '#fff',
+  },
+  appButton: {
+    backgroundColor: '#1976d2',
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  appButtonSecondary: {
+    backgroundColor: '#e0e0e0',
+  },
+  appButtonText: {
+    color: '#fff',
+    fontWeight: '700',
+  },
+  appButtonTextSecondary: {
+    color: '#333',
   },
 });
