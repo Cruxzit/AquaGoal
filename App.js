@@ -1,5 +1,6 @@
 import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, TextInput, View, TouchableOpacity, Animated, Easing, Button } from 'react-native';
+import { StyleSheet, Text, TextInput, View, TouchableOpacity, Animated, Easing, Button, Keyboard } from 'react-native';
+import Svg, { Circle } from 'react-native-svg';
 import { useState, useRef, useEffect } from 'react';
 
 export default function App() {
@@ -11,11 +12,15 @@ export default function App() {
   const defaultGoal = 8; // used for animation when no confirmed goal
   const fillAnim = useRef(new Animated.Value(0)).current; // 0..1
 
+  const [isEditingGoal, setIsEditingGoal] = useState(false);
+  const goalInputRef = useRef(null);
+
   const setConfirmedDailyGoal = () => {
     const g = Number(dailyGoal);
     if (!Number.isNaN(g) && g > 0) {
       setConfirmedGoal(g);
       alert(`Daily goal set to ${g} cups!`);
+      Keyboard.dismiss();
     } else {
       alert('Please enter a valid number for the daily goal.');
     }
@@ -45,73 +50,155 @@ export default function App() {
     }).start();
   }, [totalCups, confirmedGoal]);
 
+  // Animated SVG circle for circular progress
+  const AnimatedCircle = Animated.createAnimatedComponent(Circle);
+
+  function CircularProgress({ size = 160, strokeWidth = 12, progressAnim, progress = 0 }) {
+    const radius = (size - strokeWidth) / 2;
+    const circumference = 2 * Math.PI * radius;
+
+    // Use the parent's animated value when provided so the animation
+    // starts from the previous value instead of from 0.
+    const internalAnimated = useRef(new Animated.Value(progress)).current;
+    const animated = progressAnim || internalAnimated;
+
+    useEffect(() => {
+      // If parent didn't provide an animated value, animate the internal one.
+      if (!progressAnim) {
+        Animated.timing(animated, {
+          toValue: progress,
+          duration: 600,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: false,
+        }).start();
+      }
+    }, [progress, progressAnim]);
+
+    const strokeDashoffset = animated.interpolate({
+      inputRange: [0, 1],
+      outputRange: [circumference, 0],
+    });
+
+    return (
+      <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
+        <Svg width={size} height={size}>
+          <Circle
+            cx={size / 2}
+            cy={size / 2}
+            r={radius}
+            stroke="#e6f3ff"
+            strokeWidth={strokeWidth}
+            fill="transparent"
+          />
+          <AnimatedCircle
+            cx={size / 2}
+            cy={size / 2}
+            r={radius}
+            stroke="#1976d2"
+            strokeWidth={strokeWidth}
+            strokeLinecap="round"
+            fill="transparent"
+            strokeDasharray={`${circumference} ${circumference}`}
+            strokeDashoffset={strokeDashoffset}
+            transform={`rotate(-90 ${size / 2} ${size / 2})`}
+          />
+        </Svg>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
-      {page === 'home' ? (
-        <View style={styles.content}>
-          <Text style={styles.title}>Total cups today</Text>
-          <Text style={styles.total}>{totalCups}</Text>
-          {confirmedGoal > 0 && (
-            <Text style={styles.goalText}>Daily goal: {confirmedGoal} cups</Text>
-          )}
+      {/* Header */}
+      <View style={styles.header}>
+        <Text style={styles.logo}>💧</Text>
+        <Text style={styles.appTitle}>AquaGoal</Text>
+        <Text style={styles.subtitle}>Stay hydrated, stay healthy</Text>
+      </View>
 
-          <View style={styles.cupArea}>
-            <View style={styles.cupContainer}>
-              <Animated.View
-                style={[
-                  styles.cupFill,
-                  {
-                    height: fillAnim.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] }),
-                  },
-                ]}
-              />
-            </View>
-            <Text style={{ marginTop: 8 }}>Progress</Text>
-          </View>
-
-          <View style={styles.buttonArea}>
-            <View style={styles.buttonWrapper}>
-              <AppButton title="Add Cup" onPress={() => setTotalCups(c => c + 1)} />
-            </View>
-            <View style={styles.buttonWrapper}>
-              <AppButton title="Reset" onPress={() => setTotalCups(0)} type="secondary" />
+      {/* Card */}
+      <View style={styles.card}>
+        {/* Main area with circular progress */}
+        <View style={styles.cardCenter}>
+          <View style={styles.circularWrapper}>
+            <CircularProgress
+              size={180}
+              strokeWidth={14}
+              progressAnim={fillAnim}
+              progress={Math.min(totalCups / (confirmedGoal && confirmedGoal > 0 ? confirmedGoal : (numericGoal > 0 ? numericGoal : 8)), 1)}
+            />
+            <View style={styles.centerNumber} pointerEvents="none">
+              <Text style={styles.bigNumber}>{totalCups}</Text>
+              <Text style={styles.ofText}>{`of ${confirmedGoal > 0 ? confirmedGoal : (numericGoal > 0 ? numericGoal : 8)} glasses`}</Text>
             </View>
           </View>
+        </View>
 
-          {confirmedGoal > 0 && totalCups >= confirmedGoal && (
-            <Text style={styles.reached}>Goal reached!</Text>
-          )}
+        {/* Add button row */}
+        <View style={styles.addRowCard}>
+          <TouchableOpacity
+            style={styles.addButton}
+            activeOpacity={0.85}
+            onPress={() => setTotalCups(c => c + 1)}
+          >
+            <Text style={styles.addButtonText}>+  Add Glass</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.resetSmall} onPress={() => setTotalCups(0)}>
+            <Text style={styles.resetSmallText}>↺</Text>
+          </TouchableOpacity>
         </View>
-      ) : (
-        <View style={styles.content}>
-          <Text style={styles.title}>Set your daily goal</Text>
-          <TextInput
-            style={styles.input}
-            keyboardType="numeric"
-            placeholder="Daily Goal"
-            value={dailyGoal}
-            onChangeText={setDailyGoal}
-          />
-          <View style={{ height: 10 }} />
-          <AppButton title="Set Daily Goal" onPress={setConfirmedDailyGoal} />
-          {confirmedGoal > 0 && (
-            <Text style={styles.goalText}>Current confirmed goal: {confirmedGoal} cups</Text>
-          )}
+
+        <View style={styles.divider} />
+
+        {/* Goal row (editable inline) */}
+        <View style={styles.goalRow}>
+          <View style={styles.goalLeft}>
+            <View style={styles.goalIcon}><Text style={{color:'#0b63b6'}}>◎</Text></View>
+            <Text style={styles.goalLabel}>Daily Goal</Text>
+          </View>
+          <View style={styles.goalRight}>
+            {isEditingGoal ? (
+              <>
+                <TextInput
+                  ref={goalInputRef}
+                  style={styles.goalInput}
+                  keyboardType="numeric"
+                  returnKeyType="done"
+                  blurOnSubmit={true}
+                  onSubmitEditing={() => {
+                    setConfirmedDailyGoal();
+                    if (goalInputRef.current && goalInputRef.current.blur) goalInputRef.current.blur();
+                    setIsEditingGoal(false);
+                    Keyboard.dismiss();
+                  }}
+                  value={dailyGoal}
+                  onChangeText={setDailyGoal}
+                />
+                <TouchableOpacity style={styles.saveButton} onPress={() => { setConfirmedDailyGoal(); if (goalInputRef.current && goalInputRef.current.blur) goalInputRef.current.blur(); setIsEditingGoal(false); }}>
+                  <Text style={styles.saveText}>Save</Text>
+                </TouchableOpacity>
+              </>
+            ) : (
+              <TouchableOpacity onPress={() => setIsEditingGoal(true)}>
+                <Text style={styles.goalLink}>{confirmedGoal > 0 ? `${confirmedGoal} glasses` : `${numericGoal > 0 ? numericGoal : 8} glasses`}</Text>
+              </TouchableOpacity>
+            )}
+          </View>
         </View>
-      )}
+      </View>
 
       <StatusBar style="auto" />
 
       <View style={styles.navbar}>
         <TouchableOpacity
           style={[styles.navButton, page === 'home' && styles.navButtonActive]}
-          onPress={() => setPage('home')}
+          onPress={() => { Keyboard.dismiss(); setPage('home'); }}
         >
           <Text style={[styles.navText, page === 'home' && styles.navTextActive]}>Home</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.navButton, page === 'goal' && styles.navButtonActive]}
-          onPress={() => setPage('goal')}
+          onPress={() => { Keyboard.dismiss(); setPage('goal'); }}
         >
           <Text style={[styles.navText, page === 'goal' && styles.navTextActive]}>Goal</Text>
         </TouchableOpacity>
@@ -133,6 +220,143 @@ const styles = StyleSheet.create({
     width: '100%',
     paddingHorizontal: 20,
   },
+  header: {
+    alignItems: 'center',
+    marginTop: 20,
+    marginBottom: 6,
+  },
+  logo: {
+    fontSize: 36,
+  },
+  appTitle: {
+    fontSize: 28,
+    fontWeight: '800',
+    color: '#0b63b6',
+  },
+  subtitle: {
+    color: '#6b7280',
+    marginTop: 4,
+  },
+  card: {
+    width: '92%',
+    backgroundColor: '#fff',
+    borderRadius: 14,
+    paddingVertical: 18,
+    paddingHorizontal: 18,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    elevation: 6,
+    marginTop: 16,
+  },
+  cardCenter: {
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  circularWrapper: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: 180,
+    height: 180,
+  },
+  centerNumber: {
+    position: 'absolute',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  bigNumber: {
+    fontSize: 44,
+    fontWeight: '800',
+    color: '#0b2b3a',
+  },
+  ofText: {
+    fontSize: 16,
+    color: '#6b7280',
+  },
+  bigNumber: {
+    fontSize: 56,
+    fontWeight: '800',
+    color: '#0b2b3a',
+  },
+  ofText: {
+    fontSize: 16,
+    color: '#6b7280',
+    marginTop: 6,
+  },
+  addRowCard: {
+    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  addButton: {
+    flex: 1,
+    backgroundColor: '#16a0ff',
+    paddingVertical: 14,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#16a0ff',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.12,
+    shadowRadius: 18,
+  },
+  addButtonText: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  resetSmall: {
+    width: 54,
+    height: 54,
+    borderRadius: 8,
+    backgroundColor: '#fff',
+    marginLeft: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#eef6ff',
+  },
+  resetSmallText: {
+    color: '#0b63b6',
+    fontSize: 20,
+  },
+  divider: {
+    height: 1,
+    width: '100%',
+    backgroundColor: '#f0f4f8',
+    marginVertical: 14,
+  },
+  goalRow: {
+    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  goalLeft: { flexDirection: 'row', alignItems: 'center' },
+  goalIcon: { marginRight: 10 },
+  goalLabel: { fontSize: 16, color: '#334155' },
+  goalRight: { flexDirection: 'row', alignItems: 'center' },
+  goalInput: {
+    width: 70,
+    height: 40,
+    borderWidth: 1,
+    borderColor: '#eef6ff',
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    textAlign: 'center',
+    marginRight: 8,
+  },
+  saveButton: {
+    backgroundColor: '#0bb0d6',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  saveText: { color: '#fff', fontWeight: '700' },
+  goalLink: { color: '#0b63b6', fontWeight: '700' },
   title: {
     fontSize: 18,
     fontWeight: '600',
